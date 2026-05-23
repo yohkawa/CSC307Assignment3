@@ -88,6 +88,35 @@ public class Blackboard {
         notifyObservers();
     }
 
+    /**
+     * Replaces local data with every Taiga project returned for the logged-in user.
+     *
+     * @author Joseph Carl Santos
+     */
+    public void syncAllFromTaiga(List<TaigaClient.TaigaProjectData> taigaProjects) {
+        projects.clear();
+        nextProjectId = 1;
+
+        for (TaigaClient.TaigaProjectData taigaProject : taigaProjects) {
+            Project project = new Project(nextProjectId++, taigaProject.name(), this);
+            int storyId = 1;
+
+            for (TaigaClient.TaigaStoryData taigaStory : taigaProject.stories()) {
+                Story story = new Story(storyId++, taigaStory.title(), this);
+                project.importStory(story);
+
+                int taskId = 1;
+                for (TaigaClient.TaigaTaskData taigaTask : taigaStory.tasks()) {
+                    story.importTask(new Task(taskId++, taigaTask.title()));
+                }
+            }
+
+            projects.add(project);
+        }
+
+        notifyObservers();
+    }
+
     public void addObserver(BlackboardObserver observer) {
         observers.add(Objects.requireNonNull(observer, "observer"));
     }

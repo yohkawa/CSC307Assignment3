@@ -1,217 +1,189 @@
-import com.google.gson.Gson;
-import com.google.gson.JsonArray;
-import com.google.gson.JsonElement;
-import com.google.gson.JsonObject;
-import com.google.gson.JsonParser;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import javiergs.tulip.taiga.TaigaProject;
+import javiergs.tulip.taiga.TaigaUserStory;
 
-import java.io.IOException;
+import java.lang.reflect.Field;
 import java.net.URI;
-import java.net.URLEncoder;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
-import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
-import java.util.StringJoiner;
 
 /**
- * Taiga REST client. Uses JDK {@link HttpClient} and Gson.
+ * Taiga helper using Tulip ({@code Tulip-Examples-main/MainTaiga.java}) for login,
+ * projects, and user stories; task-to-story links come from the Taiga API JSON
+ * ({@code user_story} field — not exposed on Tulip {@code TaigaTask}).
  *
  * @author Joseph Carl Santos
  * @version 1.0
  */
 public final class TaigaClient {
 
-    private static final String API = "https://api.taiga.io/api/v1";
-    private static final Gson GSON = new Gson();
+    private static final String DEFAULT_HOST = "https://api.taiga.io";
+    private static final String API = DEFAULT_HOST + "/api/v1";
+    private static final ObjectMapper JSON = new ObjectMapper();
+
+    private final javiergs.tulip.taiga.TaigaClient tulip;
     private final HttpClient httpClient = HttpClient.newBuilder()
             .connectTimeout(Duration.ofSeconds(20))
             .build();
 
-    private String authToken;
+    private boolean loggedIn;
 
-    public void login(String username, String password) {
-        JsonObject body = new JsonObject();
-        body.addProperty("type", "normal");
-        body.addProperty("username", username);
-        body.addProperty("password", password);
+    public TaigaClient() {
+        this(DEFAULT_HOST);
+    }
 
-        JsonObject response = JsonParser.parseString(post("/auth", body, null)).getAsJsonObject();
-        authToken = textOrNull(response, "auth_token");
-        if (authToken == null || authToken.isBlank()) {
-            throw new RuntimeException("Taiga login failed. Check username and password.");
-        }
+    public TaigaClient(String host) {
+        tulip = new javiergs.tulip.taiga.TaigaClient(host);
+    }
+
+    public void login(String username, String password) throws Exception {
+        tulip.login(username, password);
+        loggedIn = true;
     }
 
     public boolean isLoggedIn() {
-        return authToken != null && !authToken.isBlank();
+        return loggedIn;
     }
 
-    public TaigaProjectData fetchProjectBySlug(String slug) {
+    public List<TaigaProjectOption> listProjects() throws Exception {
         ensureLoggedIn();
+        List<TaigaProjectOption> options = new ArrayList<>();
+        for (TaigaProject project : tulip.getMyProjects()) {
+            options.add(new TaigaProjectOption(project.getId(), project.getName()));
+        }
+        return options;
+    }
 
-        JsonObject project = JsonParser.parseString(
-                get("/projects/by_slug", Map.of("slug", slug), FetchMode.PLAIN)
-        ).getAsJsonObject();
+    public List<TaigaProjectData> fetchAllMyProjects() throws Exception {
+        List<TaigaProjectData> loaded = new ArrayList<>();
+        for (TaigaProjectOption option : listProjects()) {
+            loaded.add(fetchProject(option.id()));
+        }
+        return loaded;
+    }
 
-        long projectId = project.get("id").getAsLong();
-        String name = firstNonBlank(textOrNull(project, "name"), slug);
-        String projectSlug = firstNonBlank(textOrNull(project, "slug"), slug);
+    /**
+     * Same flow as {@code MainTaiga}: {@code getStories(projectId)} then tasks for that project,
+     * with each task placed under its user story.
+     */
+    public TaigaProjectData fetchProject(long projectId) throws Exception {
+        ensureLoggedIn();
+        TaigaProject project = findProjectById(projectId);
 
         Map<Long, TaigaStoryData> storiesById = new LinkedHashMap<>();
-        for (JsonElement element : parseArray(get("/userstories", Map.of("project", String.valueOf(projectId)), FetchMode.ALL_AT_ONCE))) {
-            JsonObject row = element.getAsJsonObject();
-            long storyId = row.get("id").getAsLong();
-            String title = formatItem(row, "subject", "Story " + refOrId(row, storyId));
-            storiesById.put(storyId, new TaigaStoryData(storyId, title));
+        for (TaigaUserStory userStory : tulip.getStories(projectId)) {
+            long storyId = userStory.getId();
+            storiesById.put(storyId, new TaigaStoryData(storyId, formatUserStory(userStory)));
         }
 
-        for (JsonElement element : parseArray(get("/tasks", Map.of("project", String.valueOf(projectId)), FetchMode.ALL_AT_ONCE))) {
-            JsonObject row = element.getAsJsonObject();
-            if (!row.has("user_story") || row.get("user_story").isJsonNull()) {
+        attachTasksToStories(projectId, storiesById);
+
+        return new TaigaProjectData(
+                projectId,
+                project.getName(),
+                new ArrayList<>(storiesById.values())
+        );
+    }
+
+    private void attachTasksToStories(long projectId, Map<Long, TaigaStoryData> storiesById) throws Exception {
+        String tasksJson = get(
+                "/tasks?project=" + projectId,
+                readTulipAuthToken()
+        );
+
+        JsonNode root = JSON.readTree(tasksJson);
+        if (!root.isArray()) {
+            return;
+        }
+
+        for (JsonNode row : root) {
+            if (!row.has("user_story") || row.get("user_story").isNull()) {
                 continue;
             }
 
-            long storyId = row.get("user_story").getAsLong();
+            long storyId = row.get("user_story").asLong();
             TaigaStoryData story = storiesById.get(storyId);
             if (story == null) {
                 continue;
             }
 
-            long taskId = row.get("id").getAsLong();
-            String title = formatItem(row, "subject", "Task " + refOrId(row, taskId));
+            long taskId = row.get("id").asLong();
+            String subject = row.has("subject") ? row.get("subject").asText("").trim() : "";
+            if (subject.isEmpty()) {
+                subject = "Task";
+            }
+            int ref = row.has("ref") && !row.get("ref").isNull() ? row.get("ref").asInt() : 0;
+            String title = ref > 0 ? "#" + ref + " " + subject : subject;
+
             story.tasks().add(new TaigaTaskData(taskId, title));
         }
+    }
 
-        return new TaigaProjectData(projectId, name, projectSlug, new ArrayList<>(storiesById.values()));
+    private String readTulipAuthToken() throws Exception {
+        Field authField = tulip.getClass().getDeclaredField("authToken");
+        authField.setAccessible(true);
+        Object token = authField.get(tulip);
+        if (token == null || String.valueOf(token).isBlank()) {
+            throw new IllegalStateException("Not logged in to Taiga.");
+        }
+        return String.valueOf(token);
+    }
+
+    private String get(String pathWithQuery, String authToken) throws Exception {
+        HttpRequest request = HttpRequest.newBuilder()
+                .uri(URI.create(API + pathWithQuery))
+                .timeout(Duration.ofSeconds(120))
+                .header("Authorization", "Bearer " + authToken)
+                .header("Accept", "application/json")
+                .header("x-disable-pagination", "True")
+                .GET()
+                .build();
+
+        HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+        if (response.statusCode() >= 400) {
+            throw new RuntimeException("Taiga API error (" + response.statusCode() + "): " + response.body());
+        }
+        return response.body();
+    }
+
+    private TaigaProject findProjectById(long projectId) throws Exception {
+        for (TaigaProject project : tulip.getMyProjects()) {
+            if (project.getId() == projectId) {
+                return project;
+            }
+        }
+        throw new RuntimeException("Project not found: " + projectId);
+    }
+
+    private static String formatUserStory(TaigaUserStory userStory) {
+        String subject = userStory.getSubject();
+        if (subject == null || subject.isBlank()) {
+            subject = "Story";
+        }
+        return "#" + userStory.getRef() + " " + subject.trim();
     }
 
     private void ensureLoggedIn() {
-        if (authToken == null || authToken.isBlank()) {
+        if (!loggedIn) {
             throw new IllegalStateException("Not logged in to Taiga.");
         }
     }
 
-    private enum FetchMode {
-        PLAIN,
-        ALL_AT_ONCE
-    }
-
-    private String get(String path, Map<String, String> query, FetchMode mode) {
-        return request("GET", path, query, null, authToken, mode).body();
-    }
-
-    private String post(String path, JsonObject body, String token) {
-        return request("POST", path, Map.of(), GSON.toJson(body), token, FetchMode.PLAIN).body();
-    }
-
-    private JsonArray parseArray(String json) {
-        JsonElement parsed = JsonParser.parseString(json);
-        if (!parsed.isJsonArray()) {
-            return new JsonArray();
-        }
-        return parsed.getAsJsonArray();
-    }
-
-    private HttpResult request(String method, String path, Map<String, String> query, String jsonBody, String token,
-                               FetchMode mode) {
-        try {
-            HttpRequest.Builder builder = HttpRequest.newBuilder()
-                    .uri(URI.create(buildUrl(path, query)))
-                    .timeout(Duration.ofSeconds(mode == FetchMode.ALL_AT_ONCE ? 120 : 30))
-                    .header("Content-Type", "application/json")
-                    .header("Accept", "application/json");
-
-            if (token != null && !token.isBlank()) {
-                builder.header("Authorization", "Bearer " + token);
-            }
-
-            if (!"GET".equals(method)) {
-                builder.POST(HttpRequest.BodyPublishers.ofString(Objects.requireNonNull(jsonBody)));
-            } else {
-                builder.GET();
-                if (mode == FetchMode.ALL_AT_ONCE) {
-                    builder.header("x-disable-pagination", "True");
-                }
-            }
-
-            HttpResponse<String> response = httpClient.send(builder.build(), HttpResponse.BodyHandlers.ofString());
-            if (response.statusCode() >= 400) {
-                throw new RuntimeException("Taiga API error (" + response.statusCode() + "): " + shorten(response.body()));
-            }
-
-            return new HttpResult(response.body());
-        } catch (InterruptedException ex) {
-            Thread.currentThread().interrupt();
-            throw new RuntimeException("Taiga request interrupted.", ex);
-        } catch (IOException ex) {
-            throw new RuntimeException("Could not reach Taiga: " + ex.getMessage(), ex);
+    public record TaigaProjectOption(long id, String name) {
+        @Override
+        public String toString() {
+            return name;
         }
     }
 
-    private record HttpResult(String body) {
-    }
-
-    private static String buildUrl(String path, Map<String, String> query) {
-        String base = API + path;
-        if (query == null || query.isEmpty()) {
-            return base;
-        }
-
-        StringJoiner joiner = new StringJoiner("&");
-        for (Map.Entry<String, String> entry : query.entrySet()) {
-            joiner.add(encode(entry.getKey()) + "=" + encode(entry.getValue()));
-        }
-        return base + "?" + joiner;
-    }
-
-    private static String encode(String value) {
-        return URLEncoder.encode(value, StandardCharsets.UTF_8);
-    }
-
-    private static String formatItem(JsonObject row, String subjectField, String fallback) {
-        String subject = firstNonBlank(textOrNull(row, subjectField), fallback);
-        if (row.has("ref") && !row.get("ref").isJsonNull()) {
-            return "#" + row.get("ref").getAsInt() + " " + subject;
-        }
-        return subject;
-    }
-
-    private static int refOrId(JsonObject row, long id) {
-        if (row.has("ref") && !row.get("ref").isJsonNull()) {
-            return row.get("ref").getAsInt();
-        }
-        return (int) Math.min(id, Integer.MAX_VALUE);
-    }
-
-    private static String textOrNull(JsonObject object, String field) {
-        if (!object.has(field) || object.get(field).isJsonNull()) {
-            return null;
-        }
-        return object.get(field).getAsString();
-    }
-
-    private static String firstNonBlank(String primary, String fallback) {
-        if (primary != null && !primary.isBlank()) {
-            return primary.trim();
-        }
-        return fallback;
-    }
-
-    private static String shorten(String text) {
-        if (text == null) {
-            return "";
-        }
-        String trimmed = text.trim();
-        return trimmed.length() <= 180 ? trimmed : trimmed.substring(0, 177) + "...";
-    }
-
-    public record TaigaProjectData(long id, String name, String slug, List<TaigaStoryData> stories) {
+    public record TaigaProjectData(long id, String name, List<TaigaStoryData> stories) {
     }
 
     public record TaigaStoryData(long id, String title, List<TaigaTaskData> tasks) {

@@ -14,11 +14,19 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     </properties>
 
+    <repositories>
+        <repository>
+            <id>jitpack.io</id>
+            <url>https://jitpack.io</url>
+        </repository>
+    </repositories>
+
     <dependencies>
+        <!-- Tulip Taiga API (see Tulip-Examples-main / MainTaiga.java) -->
         <dependency>
-            <groupId>com.google.code.gson</groupId>
-            <artifactId>gson</artifactId>
-            <version>2.11.0</version>
+            <groupId>com.github.javiergs</groupId>
+            <artifactId>TULIP</artifactId>
+            <version>v7.1</version>
         </dependency>
     </dependencies>
 
