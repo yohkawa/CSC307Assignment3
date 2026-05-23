@@ -2,7 +2,7 @@ import javax.swing.JOptionPane;
 import java.awt.Component;
 
 /**
- * Interface for Taiga and AI buttons functionality.
+ * GUI calls this interface when the user clicks the Taiga or AI buttons.
  *
  * @author Eman Castilo Hernandez
  * @version 1.0
@@ -10,6 +10,11 @@ import java.awt.Component;
 
 public interface AppController {
 
+    /**
+     * Taiga API connection and sync. Implemented by {@link TaigaAppController}.
+     *
+     * @author Joseph Carl Santos
+     */
     default void connectToTaiga(Component parent, Blackboard blackboard) {
         JOptionPane.showMessageDialog(
                 parent,

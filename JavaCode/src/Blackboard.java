@@ -54,6 +54,40 @@ public class Blackboard {
         return removed;
     }
 
+    /**
+     * Replaces local data with one Taiga project: user stories → stories, tasks → tasks.
+     *
+     * @author Joseph Carl Santos
+     */
+    public void syncFromTaiga(TaigaClient.TaigaProjectData taigaProject) {
+        projects.clear();
+        nextProjectId = 1;
+        importFromTaiga(taigaProject);
+    }
+
+    /**
+     * Adds one Taiga project without removing existing local projects.
+     *
+     * @author Joseph Carl Santos
+     */
+    public void importFromTaiga(TaigaClient.TaigaProjectData taigaProject) {
+        Project project = new Project(nextProjectId++, taigaProject.name(), this);
+        int storyId = 1;
+
+        for (TaigaClient.TaigaStoryData taigaStory : taigaProject.stories()) {
+            Story story = new Story(storyId++, taigaStory.title(), this);
+            project.importStory(story);
+
+            int taskId = 1;
+            for (TaigaClient.TaigaTaskData taigaTask : taigaStory.tasks()) {
+                story.importTask(new Task(taskId++, taigaTask.title()));
+            }
+        }
+
+        projects.add(project);
+        notifyObservers();
+    }
+
     public void addObserver(BlackboardObserver observer) {
         observers.add(Objects.requireNonNull(observer, "observer"));
     }

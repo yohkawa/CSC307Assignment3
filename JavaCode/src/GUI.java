@@ -13,15 +13,16 @@ import java.util.Objects;
 public class GUI extends JFrame implements BlackboardObserver {
 
     private final Blackboard blackboard;
+    private final WorkspacePanel workspacePanel;
+    private final InfoPanel infoPanel;
+    private final AIPanel aiPanel;
+    private final JLabel statusLabel = new JLabel("Ready");
 
     private AppController appController = new AppController() { };
 
-    private WorkspacePanel workspacePanel;
-    private InfoPanel infoPanel;
-    private AIPanel aiPanel;
-
-    private final JLabel statusLabel = new JLabel("Ready");
-
+    /**
+     * @param blackboard shared model; typically created once in {@link Main#main(String[])}
+     */
     public GUI(Blackboard blackboard) {
         installLookAndFeel();
 
@@ -29,7 +30,10 @@ public class GUI extends JFrame implements BlackboardObserver {
         this.blackboard.addObserver(this);
 
         configureFrame();
-        createPanels();
+
+        this.workspacePanel = new WorkspacePanel(blackboard, this::setStatus, this::refreshContextPanels);
+        this.infoPanel = new InfoPanel();
+        this.aiPanel = new AIPanel(() -> appController, workspacePanel::getSelectedStory, this::setStatus);
 
         add(createToolbar(), BorderLayout.NORTH);
         add(createMainContent(), BorderLayout.CENTER);
@@ -49,7 +53,7 @@ public class GUI extends JFrame implements BlackboardObserver {
             UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
         } catch (ClassNotFoundException | InstantiationException | IllegalAccessException
                  | UnsupportedLookAndFeelException ignored) {
-            // Keep default look and feel if the system one is unavailable.
+            // Keep the default look and feel if the system one is unavailable.
         }
     }
 
@@ -61,44 +65,18 @@ public class GUI extends JFrame implements BlackboardObserver {
         setLayout(new BorderLayout(8, 8));
     }
 
-    private void createPanels() {
-        workspacePanel = new WorkspacePanel(
-                blackboard,
-                this::setStatus,
-                this::updateSelectionPanels
-        );
-
-        infoPanel = new InfoPanel(blackboard);
-
-        aiPanel = new AIPanel(
-                () -> appController,
-                workspacePanel::getSelectedStory,
-                this::setStatus
-        );
-    }
-
     private JComponent createToolbar() {
-        JPanel toolbar = new JPanel(new BorderLayout());
+        JPanel toolbar = new JPanel(new FlowLayout(FlowLayout.LEFT));
 
-        JLabel titleLabel = new JLabel("CSC 307 Project Planner");
-
-        JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
-
+        // Taiga API integration — Joseph Carl Santos
         JButton connectTaigaButton = new JButton("Connect to Taiga");
-        JButton connectGroqButton = new JButton("Connect to Groq");
         JButton refreshButton = new JButton("Refresh View");
 
         connectTaigaButton.addActionListener(e -> runTaigaConnection());
-        connectGroqButton.addActionListener(e -> runGroqConnection());
         refreshButton.addActionListener(e -> blackboardChanged());
 
-        buttonPanel.add(connectTaigaButton);
-        buttonPanel.add(connectGroqButton);
-        buttonPanel.add(refreshButton);
-
-        toolbar.setBorder(BorderFactory.createEmptyBorder(6, 8, 6, 8));
-        toolbar.add(titleLabel, BorderLayout.WEST);
-        toolbar.add(buttonPanel, BorderLayout.EAST);
+        toolbar.add(connectTaigaButton);
+        toolbar.add(refreshButton);
 
         return toolbar;
     }
@@ -106,12 +84,11 @@ public class GUI extends JFrame implements BlackboardObserver {
     private JComponent createMainContent() {
         JTabbedPane rightTabs = new JTabbedPane();
         rightTabs.addTab("Info", infoPanel);
-        rightTabs.addTab("AI", aiPanel);
+        rightTabs.addTab("AI Panel", aiPanel);
 
         JSplitPane splitPane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, workspacePanel, rightTabs);
         splitPane.setResizeWeight(0.65);
         splitPane.setBorder(BorderFactory.createEmptyBorder());
-
         return splitPane;
     }
 
@@ -123,22 +100,9 @@ public class GUI extends JFrame implements BlackboardObserver {
     }
 
     private void runTaigaConnection() {
-        try {
-            appController.connectToTaiga(this, blackboard);
-            setStatus("Taiga connection action completed.");
-            blackboardChanged();
-        } catch (RuntimeException ex) {
-            showError("Taiga connection failed", ex);
-        }
-    }
-
-    private void runGroqConnection() {
-        try {
-            appController.connectToGroq(this);
-            setStatus("Groq connection action completed.");
-        } catch (RuntimeException ex) {
-            showError("Groq connection failed", ex);
-        }
+        setStatus("Connecting to Taiga...");
+        appController.connectToTaiga(this, blackboard);
+        // TaigaAppController finishes async; refresh when blackboard notifies observers.
     }
 
     @Override
@@ -149,26 +113,20 @@ public class GUI extends JFrame implements BlackboardObserver {
         }
 
         workspacePanel.refreshFromBlackboard();
-        updateSelectionPanels();
+        refreshContextPanels();
     }
 
-    private void updateSelectionPanels() {
+    private void refreshContextPanels() {
         Project selectedProject = workspacePanel.getSelectedProject();
         Story selectedStory = workspacePanel.getSelectedStory();
         Task selectedTask = workspacePanel.getSelectedTask();
 
-        infoPanel.updateSelection(selectedProject, selectedStory, selectedTask);
+        infoPanel.display(blackboard, selectedProject, selectedStory, selectedTask);
         aiPanel.updateSelection(selectedStory);
     }
 
     private void showError(String title, RuntimeException ex) {
-        JOptionPane.showMessageDialog(
-                this,
-                ex.getMessage(),
-                title,
-                JOptionPane.ERROR_MESSAGE
-        );
-
+        JOptionPane.showMessageDialog(this, ex.getMessage(), title, JOptionPane.ERROR_MESSAGE);
         setStatus(title + ".");
     }
 

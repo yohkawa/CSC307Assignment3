@@ -40,6 +40,12 @@ public class Story {
         return task;
     }
 
+    /** Used when importing tasks from Taiga. @author Joseph Carl Santos */
+    void importTask(Task task) {
+        tasks.add(task);
+        nextTaskId = Math.max(nextTaskId, task.getId() + 1);
+    }
+
     public Task getTaskById(int taskId) {
         return tasks.stream()
                 .filter(task -> task.getId() == taskId)

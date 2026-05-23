@@ -40,6 +40,12 @@ public class Project {
         return story;
     }
 
+    /** Used when importing user stories from Taiga. @author Joseph Carl Santos */
+    void importStory(Story story) {
+        stories.add(story);
+        nextStoryId = Math.max(nextStoryId, story.getId() + 1);
+    }
+
     public Story getStoryById(int storyId) {
         return stories.stream()
                 .filter(story -> story.getId() == storyId)

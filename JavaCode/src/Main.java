@@ -38,7 +38,11 @@ public final class Main {
 
     public static void main(String[] args) {
         Blackboard blackboard = new Blackboard();
-        SwingUtilities.invokeLater(() -> new GUI(blackboard));
+        SwingUtilities.invokeLater(() -> {
+            GUI gui = new GUI(blackboard);
+            // Taiga API — Joseph Carl Santos
+            gui.setAppController(new TaigaAppController());
+        });
     }
 
     /**
