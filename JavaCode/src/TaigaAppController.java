@@ -20,6 +20,7 @@ import java.awt.Window;
 public final class TaigaAppController implements AppController {
 
     private final TaigaClient taigaClient = new TaigaClient();
+    private final GroqAIClient groqAIClient = new GroqAIClient();
     private String loggedInUser;
 
     @Override
@@ -71,6 +72,47 @@ public final class TaigaAppController implements AppController {
         }.execute();
     }
 
+    @Override
+    public void connectToGroq(Component parent) {
+        GroqCredentials credentials = promptForGroq(parent);
+        if (credentials == null) {
+            return;
+        }
+
+        setWaitCursor(parent, true);
+        new SwingWorker<String, Void>() {
+            @Override
+            protected String doInBackground() {
+                groqAIClient.connect(credentials.apiKey(), credentials.model());
+                String testReply = groqAIClient.testConnection();
+                return "Connected to Groq using model " + groqAIClient.getModel() + ".\n\n" + testReply;
+            }
+
+            @Override
+            protected void done() {
+                setWaitCursor(parent, false);
+                try {
+                    JOptionPane.showMessageDialog(
+                            parent,
+                            get(),
+                            "Groq Connected",
+                            JOptionPane.INFORMATION_MESSAGE
+                    );
+                } catch (Exception ex) {
+                    showError(parent, "Groq connection failed", message(ex));
+                }
+            }
+        }.execute();
+    }
+
+    @Override
+    public String reviewStoryWithAI(Story story, String userPrompt) {
+        if (story == null) {
+            throw new RuntimeException("Select a story before asking Groq for feedback.");
+        }
+        return groqAIClient.reviewStory(story, userPrompt);
+    }
+
     private String importAllProjects(Blackboard blackboard) throws Exception {
         var projects = taigaClient.fetchAllMyProjects();
         if (projects.isEmpty()) {
@@ -89,6 +131,38 @@ public final class TaigaAppController implements AppController {
                     .append(" stories)\n");
         }
         return summary.toString().trim();
+    }
+
+    private GroqCredentials promptForGroq(Component parent) {
+        JPasswordField apiKeyField = new JPasswordField(28);
+        JTextField modelField = new JTextField("llama-3.3-70b-versatile", 28);
+
+        JPanel panel = new JPanel(new GridLayout(2, 2, 6, 6));
+        panel.add(new JLabel("Groq API key:"));
+        panel.add(apiKeyField);
+        panel.add(new JLabel("Model:"));
+        panel.add(modelField);
+
+        int choice = JOptionPane.showConfirmDialog(
+                parent,
+                panel,
+                "Connect to Groq",
+                JOptionPane.OK_CANCEL_OPTION,
+                JOptionPane.PLAIN_MESSAGE
+        );
+
+        if (choice != JOptionPane.OK_OPTION) {
+            return null;
+        }
+
+        String apiKey = new String(apiKeyField.getPassword()).trim();
+        String model = modelField.getText().trim();
+
+        if (apiKey.isEmpty()) {
+            throw new RuntimeException("Groq API key is required.");
+        }
+
+        return new GroqCredentials(apiKey, model);
     }
 
     private LoginCredentials promptForLogin(Component parent) {
@@ -147,9 +221,16 @@ public final class TaigaAppController implements AppController {
     }
 
     private static void showError(Component parent, String message) {
-        JOptionPane.showMessageDialog(parent, message, "Taiga connection failed", JOptionPane.ERROR_MESSAGE);
+        showError(parent, "Taiga connection failed", message);
+    }
+
+    private static void showError(Component parent, String title, String message) {
+        JOptionPane.showMessageDialog(parent, message, title, JOptionPane.ERROR_MESSAGE);
     }
 
     private record LoginCredentials(String username, String password) {
+    }
+
+    private record GroqCredentials(String apiKey, String model) {
     }
 }

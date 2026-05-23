@@ -70,12 +70,15 @@ public class GUI extends JFrame implements BlackboardObserver {
 
         // Taiga API integration — Joseph Carl Santos
         JButton connectTaigaButton = new JButton("Connect to Taiga");
+        JButton connectGroqButton = new JButton("Connect to Groq");
         JButton refreshButton = new JButton("Refresh View");
 
         connectTaigaButton.addActionListener(e -> runTaigaConnection());
+        connectGroqButton.addActionListener(e -> runGroqConnection());
         refreshButton.addActionListener(e -> blackboardChanged());
 
         toolbar.add(connectTaigaButton);
+        toolbar.add(connectGroqButton);
         toolbar.add(refreshButton);
 
         return toolbar;
@@ -103,6 +106,11 @@ public class GUI extends JFrame implements BlackboardObserver {
         setStatus("Connecting to Taiga...");
         appController.connectToTaiga(this, blackboard);
         // TaigaAppController finishes async; refresh when blackboard notifies observers.
+    }
+
+    private void runGroqConnection() {
+        setStatus("Connecting to Groq...");
+        appController.connectToGroq(this);
     }
 
     @Override
