@@ -8,9 +8,6 @@ import java.util.function.Supplier;
 /**
  * Groq AI assistant panel for reviewing selected Blackboard stories.
  *
- * It sends AI requests to {@link AppController}; it does not talk directly to
- * another GUI component or directly instantiate API clients.
- *
  * @author Eman Castilo Hernandez
  * @version 1.1
  */
@@ -83,6 +80,7 @@ public final class AIPanel extends JPanel {
 
     private void runReview() {
         Story selectedStory = selectedStorySupplier.get();
+
         if (selectedStory == null) {
             JOptionPane.showMessageDialog(
                     this,
@@ -94,8 +92,9 @@ public final class AIPanel extends JPanel {
         }
 
         String prompt = promptArea.getText().trim();
+
         setBusy(true);
-        resultArea.setText("Asking Groq to review story #" + selectedStory.getId() + "...\n");
+        resultArea.setText("Asking Groq to review story #" + selectedStory.getId() + "...");
         statusUpdater.accept("Groq review running...");
 
         new SwingWorker<String, Void>() {
@@ -135,13 +134,16 @@ public final class AIPanel extends JPanel {
 
     private void showFailure(Throwable ex) {
         String message = ex.getMessage() == null ? ex.toString() : ex.getMessage();
+
         resultArea.setText("Groq review failed.\n\n" + message);
+
         JOptionPane.showMessageDialog(
                 this,
                 message,
                 "AI review failed",
                 JOptionPane.ERROR_MESSAGE
         );
+
         statusUpdater.accept("Groq AI review failed.");
     }
 }

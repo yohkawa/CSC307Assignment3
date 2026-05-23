@@ -8,7 +8,7 @@ import java.util.Objects;
  * This class connects the main GUI panels and listens for Blackboard changes.
  *
  * @author Eman Castilo Hernandez
- * @version 1.0
+ * @version 1.1
  */
 public class GUI extends JFrame implements BlackboardObserver {
 
@@ -20,9 +20,6 @@ public class GUI extends JFrame implements BlackboardObserver {
 
     private AppController appController = new AppController() { };
 
-    /**
-     * @param blackboard shared model; typically created once in {@link Main#main(String[])}
-     */
     public GUI(Blackboard blackboard) {
         installLookAndFeel();
 
@@ -53,7 +50,6 @@ public class GUI extends JFrame implements BlackboardObserver {
             UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
         } catch (ClassNotFoundException | InstantiationException | IllegalAccessException
                  | UnsupportedLookAndFeelException ignored) {
-            // Keep the default look and feel if the system one is unavailable.
         }
     }
 
@@ -68,7 +64,6 @@ public class GUI extends JFrame implements BlackboardObserver {
     private JComponent createToolbar() {
         JPanel toolbar = new JPanel(new FlowLayout(FlowLayout.LEFT));
 
-        // Taiga API integration — Joseph Carl Santos
         JButton connectTaigaButton = new JButton("Connect to Taiga");
         JButton connectGroqButton = new JButton("Connect to Groq");
         JButton refreshButton = new JButton("Refresh View");
@@ -105,7 +100,6 @@ public class GUI extends JFrame implements BlackboardObserver {
     private void runTaigaConnection() {
         setStatus("Connecting to Taiga...");
         appController.connectToTaiga(this, blackboard);
-        // TaigaAppController finishes async; refresh when blackboard notifies observers.
     }
 
     private void runGroqConnection() {
@@ -131,11 +125,6 @@ public class GUI extends JFrame implements BlackboardObserver {
 
         infoPanel.display(blackboard, selectedProject, selectedStory, selectedTask);
         aiPanel.updateSelection(selectedStory);
-    }
-
-    private void showError(String title, RuntimeException ex) {
-        JOptionPane.showMessageDialog(this, ex.getMessage(), title, JOptionPane.ERROR_MESSAGE);
-        setStatus(title + ".");
     }
 
     private void setStatus(String message) {
