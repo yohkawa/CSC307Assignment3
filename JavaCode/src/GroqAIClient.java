@@ -1,15 +1,14 @@
 import javiergs.tulip.groq.GroqClient;
 import javiergs.tulip.groq.GroqConfig;
 
-import java.io.FileInputStream;
+import java.io.FileNotFoundException;
 import java.io.InputStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.Properties;
 
 /**
  * Groq AI client using the TULIP Groq API.
- *
- * Reads GROQ_API_KEY, GROQ_BASE_URL/GROQ_SERVER, and GROQ_MODEL
- * from config.properties, just like the Tulip MainGroq example.
  */
 public final class GroqAIClient {
 
@@ -110,7 +109,28 @@ public final class GroqAIClient {
                 .getResourceAsStream(CONFIG_FILE);
 
         if (inputStream == null) {
-            inputStream = new FileInputStream("src/main/resources/" + CONFIG_FILE);
+            String[] possiblePaths = {
+                    CONFIG_FILE,
+                    "src/" + CONFIG_FILE,
+                    "src/main/resources/" + CONFIG_FILE,
+                    "JavaCode/src/" + CONFIG_FILE,
+                    "JavaCode/src/main/resources/" + CONFIG_FILE
+            };
+
+            for (String possiblePath : possiblePaths) {
+                Path path = Path.of(possiblePath);
+                if (Files.exists(path)) {
+                    inputStream = Files.newInputStream(path);
+                    break;
+                }
+            }
+        }
+
+        if (inputStream == null) {
+            throw new FileNotFoundException(
+                    "Could not find config.properties. Put it in JavaCode/src/config.properties " +
+                            "or JavaCode/src/main/resources/config.properties."
+            );
         }
 
         try (InputStream in = inputStream) {
