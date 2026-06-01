@@ -2,6 +2,7 @@
 <project xmlns="http://maven.apache.org/POM/4.0.0"
          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+
     <modelVersion>4.0.0</modelVersion>
 
     <groupId>csc307</groupId>
@@ -14,30 +15,36 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     </properties>
 
-    <repositories>
-        <repository>
-            <id>jitpack.io</id>
-            <url>https://jitpack.io</url>
-        </repository>
-    </repositories>
-
     <dependencies>
-        <!-- Tulip Taiga API (see Tulip-Examples-main / MainTaiga.java) -->
+        <!-- TULIP library for Taiga and Groq classes -->
         <dependency>
-            <groupId>com.github.javiergs</groupId>
-            <artifactId>TULIP</artifactId>
-            <version>v7.1</version>
+            <groupId>com.javiergs</groupId>
+            <artifactId>tulip</artifactId>
+            <version>8.0.0</version>
+        </dependency>
+
+        <!-- Jackson JSON library for ObjectMapper and JsonNode -->
+        <dependency>
+            <groupId>com.fasterxml.jackson.core</groupId>
+            <artifactId>jackson-databind</artifactId>
+            <version>2.17.2</version>
         </dependency>
     </dependencies>
 
     <build>
+        <!-- Your project uses JavaCode/src directly -->
         <sourceDirectory>src</sourceDirectory>
+
         <plugins>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
                 <version>3.13.0</version>
+                <configuration>
+                    <release>17</release>
+                </configuration>
             </plugin>
+
             <plugin>
                 <groupId>org.codehaus.mojo</groupId>
                 <artifactId>exec-maven-plugin</artifactId>
@@ -48,4 +55,5 @@
             </plugin>
         </plugins>
     </build>
+
 </project>
