@@ -82,7 +82,9 @@ public final class GroqAIClient {
                         .append(task.getId())
                         .append(" ")
                         .append(task.getTitle())
-                        .append("\n");
+                        .append(" [")
+                        .append(task.getStatus())
+                        .append("]\n");
             }
         }
 

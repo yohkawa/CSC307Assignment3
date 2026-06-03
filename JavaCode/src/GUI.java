@@ -67,14 +67,17 @@ public class GUI extends JFrame implements BlackboardObserver {
         JButton connectTaigaButton = new JButton("Connect to Taiga");
         JButton connectGroqButton = new JButton("Connect to Groq");
         JButton refreshButton = new JButton("Refresh View");
+        JButton burndownChartButton = new JButton("Create Burndown Chart");
 
         connectTaigaButton.addActionListener(e -> runTaigaConnection());
         connectGroqButton.addActionListener(e -> runGroqConnection());
         refreshButton.addActionListener(e -> blackboardChanged());
+        burndownChartButton.addActionListener(e -> createBurndownChart());
 
         toolbar.add(connectTaigaButton);
         toolbar.add(connectGroqButton);
         toolbar.add(refreshButton);
+        toolbar.add(burndownChartButton);
 
         return toolbar;
     }
@@ -105,6 +108,45 @@ public class GUI extends JFrame implements BlackboardObserver {
     private void runGroqConnection() {
         setStatus("Connecting to Groq...");
         appController.connectToGroq(this);
+    }
+
+    private void createBurndownChart() {
+        Project selectedProject = workspacePanel.getSelectedProject();
+        if (selectedProject == null) {
+            JOptionPane.showMessageDialog(
+                    this,
+                    "Select a project before creating a burndown chart.",
+                    "Selection Required",
+                    JOptionPane.INFORMATION_MESSAGE
+            );
+            return;
+        }
+
+        if (countTasks(selectedProject) == 0) {
+            JOptionPane.showMessageDialog(
+                    this,
+                    "The selected project does not have any tasks to chart.",
+                    "No Tasks",
+                    JOptionPane.INFORMATION_MESSAGE
+            );
+            return;
+        }
+
+        JDialog dialog = new JDialog(this, "Burndown Chart - " + selectedProject.getName(), false);
+        dialog.setDefaultCloseOperation(WindowConstants.DISPOSE_ON_CLOSE);
+        dialog.add(new BurndownChartPanel(selectedProject), BorderLayout.CENTER);
+        dialog.pack();
+        dialog.setLocationRelativeTo(this);
+        dialog.setVisible(true);
+        setStatus("Burndown chart created for " + selectedProject.getName() + ".");
+    }
+
+    private int countTasks(Project project) {
+        int count = 0;
+        for (Story story : project.getStories()) {
+            count += story.getTasks().size();
+        }
+        return count;
     }
 
     @Override

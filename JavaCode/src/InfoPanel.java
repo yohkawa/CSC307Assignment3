@@ -31,7 +31,9 @@ public final class InfoPanel extends JPanel {
             text.append("Selected Project\n");
             text.append("ID: ").append(selectedProject.getId()).append("\n");
             text.append("Name: ").append(selectedProject.getName()).append("\n");
-            text.append("Stories: ").append(selectedProject.getStories().size()).append("\n\n");
+            text.append("Stories: ").append(selectedProject.getStories().size()).append("\n");
+            text.append("Tasks complete: ").append(countCompleteTasks(selectedProject))
+                    .append("/").append(countTasks(selectedProject)).append("\n\n");
         }
 
         if (selectedStory != null) {
@@ -44,10 +46,31 @@ public final class InfoPanel extends JPanel {
         if (selectedTask != null) {
             text.append("Selected Task\n");
             text.append("ID: ").append(selectedTask.getId()).append("\n");
-            text.append("Title: ").append(selectedTask.getTitle()).append("\n\n");
+            text.append("Title: ").append(selectedTask.getTitle()).append("\n");
+            text.append("Status: ").append(selectedTask.getStatus()).append("\n\n");
         }
 
         textArea.setText(text.toString());
         textArea.setCaretPosition(0);
+    }
+
+    private int countTasks(Project project) {
+        int count = 0;
+        for (Story story : project.getStories()) {
+            count += story.getTasks().size();
+        }
+        return count;
+    }
+
+    private int countCompleteTasks(Project project) {
+        int count = 0;
+        for (Story story : project.getStories()) {
+            for (Task task : story.getTasks()) {
+                if (task.isComplete()) {
+                    count++;
+                }
+            }
+        }
+        return count;
     }
 }

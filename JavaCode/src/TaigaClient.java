@@ -121,9 +121,26 @@ public final class TaigaClient {
             }
             int ref = row.has("ref") && !row.get("ref").isNull() ? row.get("ref").asInt() : 0;
             String title = ref > 0 ? "#" + ref + " " + subject : subject;
+            TaskStatus status = parseTaskStatus(row);
 
-            story.tasks().add(new TaigaTaskData(taskId, title));
+            story.tasks().add(new TaigaTaskData(taskId, title, status));
         }
+    }
+
+    private TaskStatus parseTaskStatus(JsonNode row) {
+        if (row.has("is_closed") && row.get("is_closed").asBoolean(false)) {
+            return TaskStatus.COMPLETE;
+        }
+
+        if (row.has("status_extra_info") && row.get("status_extra_info").has("name")) {
+            return TaskStatus.fromText(row.get("status_extra_info").get("name").asText());
+        }
+
+        if (row.has("status") && !row.get("status").isNull()) {
+            return TaskStatus.fromText(row.get("status").asText());
+        }
+
+        return TaskStatus.INCOMPLETE;
     }
 
     private String readTulipAuthToken() throws Exception {
@@ -192,6 +209,6 @@ public final class TaigaClient {
         }
     }
 
-    public record TaigaTaskData(long id, String title) {
+    public record TaigaTaskData(long id, String title, TaskStatus status) {
     }
 }

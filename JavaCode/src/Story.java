@@ -61,6 +61,17 @@ public class Story {
         return removed;
     }
 
+    public boolean updateTaskStatus(int taskId, TaskStatus status) {
+        Task task = getTaskById(taskId);
+        if (task == null) {
+            return false;
+        }
+
+        task.setStatus(status);
+        blackboard.notifyObservers();
+        return true;
+    }
+
     public List<Task> getTasks() {
         return Collections.unmodifiableList(tasks);
     }

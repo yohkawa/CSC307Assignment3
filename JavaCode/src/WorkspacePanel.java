@@ -8,7 +8,7 @@ import java.util.function.Consumer;
  * add/delete actions and hides story/task panels when not in use.
  *
  * @author Eman Castilo Hernandez
- * @version 1.0
+ * @version 1.1
  */
 public final class WorkspacePanel extends JPanel {
 
@@ -30,11 +30,14 @@ public final class WorkspacePanel extends JPanel {
     private final JButton deleteStoryButton = new JButton("Delete Story");
     private final JButton addTaskButton = new JButton("Add Task");
     private final JButton deleteTaskButton = new JButton("Delete Task");
+    private final JLabel taskStatusLabel = new JLabel("Task Status:");
+    private final JComboBox<TaskStatus> taskStatusComboBox = new JComboBox<>(TaskStatus.values());
 
     private JPanel storyColumn;
     private JPanel taskColumn;
 
     private boolean refreshing;
+    private boolean updatingTaskStatusControl;
 
     public WorkspacePanel(Blackboard blackboard, Consumer<String> statusUpdater, Runnable selectionChanged) {
         super(new GridBagLayout());
@@ -161,9 +164,14 @@ public final class WorkspacePanel extends JPanel {
 
         addTaskButton.addActionListener(e -> addTask());
         deleteTaskButton.addActionListener(e -> deleteSelectedTask());
+        taskStatusComboBox.addActionListener(e -> updateSelectedTaskStatus());
+
+        JPanel taskControls = new JPanel(new BorderLayout(4, 4));
+        taskControls.add(createTaskStatusRow(), BorderLayout.NORTH);
+        taskControls.add(createButtonRow(addTaskButton, deleteTaskButton), BorderLayout.SOUTH);
 
         panel.add(new JScrollPane(taskList), BorderLayout.CENTER);
-        panel.add(createButtonRow(addTaskButton, deleteTaskButton), BorderLayout.SOUTH);
+        panel.add(taskControls, BorderLayout.SOUTH);
         return panel;
     }
 
@@ -177,6 +185,13 @@ public final class WorkspacePanel extends JPanel {
         JPanel row = new JPanel(new GridLayout(1, 2, 4, 4));
         row.add(first);
         row.add(second);
+        return row;
+    }
+
+    private JPanel createTaskStatusRow() {
+        JPanel row = new JPanel(new BorderLayout(4, 4));
+        row.add(taskStatusLabel, BorderLayout.WEST);
+        row.add(taskStatusComboBox, BorderLayout.CENTER);
         return row;
     }
 
@@ -276,6 +291,28 @@ public final class WorkspacePanel extends JPanel {
         }
     }
 
+    private void updateSelectedTaskStatus() {
+        if (refreshing || updatingTaskStatusControl) {
+            return;
+        }
+
+        Story selectedStory = getSelectedStory();
+        Task selectedTask = getSelectedTask();
+        TaskStatus selectedStatus = (TaskStatus) taskStatusComboBox.getSelectedItem();
+
+        if (selectedStory == null || selectedTask == null || selectedStatus == null) {
+            return;
+        }
+
+        if (selectedTask.getStatus() == selectedStatus) {
+            return;
+        }
+
+        if (selectedStory.updateTaskStatus(selectedTask.getId(), selectedStatus)) {
+            statusUpdater.accept("Task status set to " + selectedStatus + ".");
+        }
+    }
+
     private void refreshProjects(int selectedProjectId) {
         projectModel.clear();
 
@@ -321,8 +358,25 @@ public final class WorkspacePanel extends JPanel {
         deleteStoryButton.setEnabled(hasStory);
         addTaskButton.setEnabled(hasStory);
         deleteTaskButton.setEnabled(hasTask);
+        updateTaskStatusControl(hasTask);
 
         updateColumnVisibility();
+    }
+
+    private void updateTaskStatusControl(boolean hasTask) {
+        updatingTaskStatusControl = true;
+        try {
+            Task selectedTask = getSelectedTask();
+            taskStatusLabel.setEnabled(hasTask);
+            taskStatusComboBox.setEnabled(hasTask);
+            if (selectedTask == null) {
+                taskStatusComboBox.setSelectedItem(TaskStatus.INCOMPLETE);
+            } else {
+                taskStatusComboBox.setSelectedItem(selectedTask.getStatus());
+            }
+        } finally {
+            updatingTaskStatusControl = false;
+        }
     }
 
     private void updateColumnVisibility() {

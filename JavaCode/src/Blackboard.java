@@ -80,7 +80,7 @@ public class Blackboard {
 
             int taskId = 1;
             for (TaigaClient.TaigaTaskData taigaTask : taigaStory.tasks()) {
-                story.importTask(new Task(taskId++, taigaTask.title()));
+                story.importTask(new Task(taskId++, taigaTask.title(), taigaTask.status()));
             }
         }
 
@@ -107,7 +107,7 @@ public class Blackboard {
 
                 int taskId = 1;
                 for (TaigaClient.TaigaTaskData taigaTask : taigaStory.tasks()) {
-                    story.importTask(new Task(taskId++, taigaTask.title()));
+                    story.importTask(new Task(taskId++, taigaTask.title(), taigaTask.status()));
                 }
             }
 
